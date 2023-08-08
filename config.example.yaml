@@ -1,0 +1,6 @@
+jumps:
+  - name: <name-of-jump>
+    target: <name-of-ec2-instance>
+    remote_host: <remote-host>
+    remote_port: <remote-port>
+    local_port: <local-port>
