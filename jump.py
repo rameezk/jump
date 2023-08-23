@@ -56,6 +56,13 @@ def lookup_instance_id(
         if verbose:
             typer.secho(f"{instance_id=}", fg=typer.colors.CYAN)
 
+        if not instance_id:
+            typer.secho(
+                f"Could not find instance ID for {instance_name}",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(code=1)
+
         if "\n" in instance_id:
             typer.secho(
                 "Found more than one instance. This is not supported at the moment.",
@@ -131,7 +138,7 @@ def jump(
         target.remote_port,
         target.local_port,
         target.aws_profile,
-        verbose=verbose
+        verbose=verbose,
     )
 
 
