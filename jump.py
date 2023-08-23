@@ -35,13 +35,34 @@ def parse_jumps_from_config() -> dict[str, Jump]:
         raise typer.Exit(code=1)
 
 
-def lookup_instance_id(instance_name: str, aws_profile: str) -> str:
+def lookup_instance_id(
+    instance_name: str, aws_profile: str, verbose: bool = False
+) -> str:
     typer.secho(
         f"Looking up the instance ID of {instance_name}", fg=typer.colors.MAGENTA
     )
     try:
-        cmd = f'aws --profile {aws_profile} ec2 describe-instances --filters Name=tag-value,Values={instance_name} --query "Reservations[*].Instances[*].[InstanceId]" --output text'
+        cmd = f"aws --profile {aws_profile} ec2 describe-instances"
+        cmd += f' --query "Reservations[*].Instances[*].[InstanceId]" --output text'
+        cmd += f" --filters"
+        cmd += f" Name=tag:Name,Values={instance_name}"
+        cmd += f" Name=instance-state-name,Values=running"
+        cmd += " --output text"
+        if verbose:
+            typer.secho(cmd, fg=typer.colors.CYAN)
+
         instance_id = subprocess.check_output(cmd, shell=True).decode().strip()
+
+        if verbose:
+            typer.secho(f"{instance_id=}", fg=typer.colors.CYAN)
+
+        if "\n" in instance_id:
+            typer.secho(
+                "Found more than one instance. This is not supported at the moment.",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(code=1)
+
     except subprocess.CalledProcessError:
         typer.secho(
             f"Failed to lookup the instance ID of {instance_name}", fg=typer.colors.RED
@@ -56,6 +77,7 @@ def start_ssm_session(
     remote_port: int,
     local_port: int,
     aws_profile: str,
+    verbose: bool = False,
 ) -> None:
     typer.secho(f"Establishing an SSM session", fg=typer.colors.MAGENTA)
 
@@ -70,6 +92,8 @@ def start_ssm_session(
     cmd += f"'{json.dumps(parameters)}'"
 
     try:
+        if verbose:
+            typer.secho(cmd, fg=typer.colors.CYAN)
         subprocess.run(cmd, shell=True)
     except subprocess.CalledProcessError:
         typer.secho(f"Failed to establish an SSM session", fg=typer.colors.RED)
@@ -78,7 +102,14 @@ def start_ssm_session(
 
 @app.command(help="Establish a tunnel to a remote host using SSM")
 def jump(
-    name: str = typer.Argument(..., help="Name of the jump (specified in config.yaml)")
+    name: str = typer.Argument(
+        ...,
+        help="Name of the jump (specified in config.yaml)",
+    ),
+    verbose: bool = typer.Option(
+        False,
+        help="Enable verbosity",
+    ),
 ):
     jumps = parse_jumps_from_config()
     target = jumps.get(name, None)
@@ -90,7 +121,9 @@ def jump(
         raise typer.Exit(code=1)
 
     target_instance_id = lookup_instance_id(
-        target.target_instance_name, target.aws_profile
+        target.target_instance_name,
+        target.aws_profile,
+        verbose=verbose,
     )
     start_ssm_session(
         target_instance_id,
@@ -98,6 +131,7 @@ def jump(
         target.remote_port,
         target.local_port,
         target.aws_profile,
+        verbose=verbose
     )
 
 
