@@ -102,7 +102,7 @@ def lookup_dns_from_vpc_endpoint(
         if verbose:
             typer.secho(f"{dns_name=}", fg=typer.colors.CYAN)
 
-        if not dns_name:
+        if not dns_name or dns_name == "None":
             typer.secho(
                 f"Could not find DNS for {vpc_endpoint_name}",
                 fg=typer.colors.RED,
