@@ -19,6 +19,9 @@ class Jump:
     remote_port: int  # Port to jump to on remote host
     local_port: int  # Local port to bind to
     aws_profile: str  # AWS profile to use for AWS cli commands
+    remote_host_is_a_vpc_endpoint: bool = (
+        False  # If true, will look up DNS name to use as remote host in SSM connection
+    )
 
 
 def parse_jumps_from_config() -> dict[str, Jump]:
@@ -78,6 +81,42 @@ def lookup_instance_id(
     return instance_id
 
 
+def lookup_dns_from_vpc_endpoint(
+    vpc_endpoint_name: str, aws_profile: str, verbose: bool = False
+) -> str:
+    typer.secho(
+        f"Looking up the DNS from VPC endpoint {vpc_endpoint_name}",
+        fg=typer.colors.MAGENTA,
+    )
+    try:
+        cmd = f"aws --profile {aws_profile} ec2 describe-vpc-endpoints"
+        cmd += f' --query "VpcEndpoints[0].DnsEntries[0].DnsName"'
+        cmd += f" --filters"
+        cmd += f" Name=tag:Name,Values={vpc_endpoint_name}"
+        cmd += " --output text"
+        if verbose:
+            typer.secho(cmd, fg=typer.colors.CYAN)
+
+        dns_name = subprocess.check_output(cmd, shell=True).decode().strip()
+
+        if verbose:
+            typer.secho(f"{dns_name=}", fg=typer.colors.CYAN)
+
+        if not dns_name:
+            typer.secho(
+                f"Could not find DNS for {vpc_endpoint_name}",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(code=1)
+
+    except subprocess.CalledProcessError:
+        typer.secho(
+            f"Failed to lookup the DNS of {vpc_endpoint_name}", fg=typer.colors.RED
+        )
+        raise typer.Exit(code=1)
+    return dns_name
+
+
 def start_ssm_session(
     target_instance_id: str,
     remote_host: str,
@@ -132,9 +171,19 @@ def jump(
         target.aws_profile,
         verbose=verbose,
     )
+
+    if target.remote_host_is_a_vpc_endpoint:
+        target_remote_host = lookup_dns_from_vpc_endpoint(
+            vpc_endpoint_name=target.remote_host,
+            aws_profile=target.aws_profile,
+            verbose=verbose,
+        )
+    else:
+        target_remote_host = target.remote_host
+
     start_ssm_session(
         target_instance_id,
-        target.remote_host,
+        target_remote_host,
         target.remote_port,
         target.local_port,
         target.aws_profile,

@@ -4,3 +4,4 @@ jumps:
     remote_host: <remote-host>
     remote_port: <remote-port>
     local_port: <local-port>
+    remote_host_is_a_vpc_endpoint: <optional true/false> # if true, will look up the DNS to use as remote host in SSM
