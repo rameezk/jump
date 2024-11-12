@@ -1,5 +1,5 @@
 #! /usr/bin/env nix-shell
-#! nix-shell --pure -i python3 -p python3Packages.typer python3Packages.pyyaml awscli2 ssm-session-manager-plugin
+#! nix-shell --pure -i python3 -p "python3.withPackages (ps: with ps; [ typer pyyaml ])" awscli2 ssm-session-manager-plugin
 
 import json
 import subprocess
